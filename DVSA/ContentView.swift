@@ -1,24 +1,18 @@
-//
-//  ContentView.swift
-//  DVSA
-//
-//  Created by Bastion on 06.01.2026.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    // Ascultăm starea autentificării
+    @ObservedObject var networkService = NetworkService.shared
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        Group {
+            if networkService.isAuthenticated {
+                VaultView()
+                    .transition(.opacity)
+            } else {
+                LoginView()
+                    .transition(.opacity)
+            }
         }
-        .padding()
     }
-}
-
-#Preview {
-    ContentView()
 }
