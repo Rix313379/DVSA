@@ -49,14 +49,14 @@ struct LoginView: View {
         if isRegistering {
             NetworkService.shared.register(username: username, password: password) { success, msg in
                 DispatchQueue.main.async {
-                    if success { isRegistering = false; message = "Cont creat! Loghează-te." }
-                    else { message = msg ?? "Eroare." }
+                    if success { isRegistering = false; message = "Account Created." }
+                    else { message = msg ?? "ERROR!" }
                 }
             }
         } else {
             NetworkService.shared.login(username: username, password: password) { success, msg in
                 DispatchQueue.main.async {
-                    if !success { message = msg ?? "Eroare login." }
+                    if !success { message = msg ?? "LOGIN ERROR!" }
                 }
             }
         }

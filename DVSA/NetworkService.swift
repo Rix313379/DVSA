@@ -22,13 +22,15 @@ struct TokenResponse: Codable {
 class NetworkService: ObservableObject {
     static let shared = NetworkService()
     
-    // URL Backend: 127.0.0.1 pentru Simulator.
-    // Dacă testezi pe telefon, pune IP-ul laptopului (ex: http://192.168.1.x:5001)
+    private let Alpha_USER = "Alpha_USER"
+    private let Alpha_USERPASS = "Alpha_USERPASS"
+
     let baseURL = "http://127.0.0.1:5001"
     
     @Published var isAuthenticated = false
     
     private init() {
+        
         if UserDefaults.standard.string(forKey: "authToken") != nil {
             self.isAuthenticated = true
         }
@@ -40,6 +42,18 @@ class NetworkService: ObservableObject {
     
     // LOGIN
     func login(username: String, password: String, completion: @escaping (Bool, String?) -> Void) {
+        
+        // VULNERABILITY: Hardcoded Bypass Logic (Backdoor) [cite: 7, 30]
+        if username == Alpha_USER && password == Alpha_USERPASS {
+            print("DEBUG: Developer bypass triggered for user: \(username)")
+            DispatchQueue.main.async {
+                UserDefaults.standard.set("bypass_token_tester_access_only", forKey: "authToken")
+                self.isAuthenticated = true
+                completion(true, nil)
+            }
+            return
+        }
+
         guard let url = URL(string: "\(baseURL)/login") else { return }
         let body: [String: Any] = ["username": username, "password": password]
         
@@ -49,7 +63,10 @@ class NetworkService: ObservableObject {
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
         
         URLSession.shared.dataTask(with: request) { data, response, error in
-            guard let data = data, error == nil else { completion(false, "Eroare conexiune"); return }
+            guard let data = data, error == nil else {
+                completion(false, "Connection error")
+                return
+            }
             
             if let decoded = try? JSONDecoder().decode(TokenResponse.self, from: data) {
                 DispatchQueue.main.async {
@@ -58,7 +75,32 @@ class NetworkService: ObservableObject {
                     completion(true, nil)
                 }
             } else {
-                completion(false, "Date incorecte")
+                completion(false, "Invalid credentials")
+            }
+        }.resume()
+    }
+    
+    // VULNERABLE SEARCH (Exfiltration Point)
+    func searchVault(query: String, completion: @escaping ([VaultItem]?) -> Void) {
+        // VULNERABILITY: Input sent directly to URL without sanitization (M4) [cite: 16, 32]
+        // This is the point where the SQL Injection payload enters the system.
+        let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        guard let url = URL(string: "\(baseURL)/vault/search?q=\(encodedQuery)"),
+              let token = self.token else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            guard let data = data else {
+                completion(nil)
+                return
+            }
+            if let decoded = try? JSONDecoder().decode(VaultResponse.self, from: data) {
+                DispatchQueue.main.async { completion(decoded.vault) }
+            } else {
+                completion(nil)
             }
         }.resume()
     }
@@ -75,9 +117,9 @@ class NetworkService: ObservableObject {
         
         URLSession.shared.dataTask(with: request) { _, response, _ in
             if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-                completion(true, "Cont creat!")
+                completion(true, "Account created!")
             } else {
-                completion(false, "Eroare creare.")
+                completion(false, "Registration error")
             }
         }.resume()
     }
@@ -96,10 +138,15 @@ class NetworkService: ObservableObject {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         URLSession.shared.dataTask(with: request) { data, _, _ in
-            guard let data = data else { completion(nil); return }
+            guard let data = data else {
+                completion(nil)
+                return
+            }
             if let decoded = try? JSONDecoder().decode(VaultResponse.self, from: data) {
                 DispatchQueue.main.async { completion(decoded.vault) }
-            } else { completion(nil) }
+            } else {
+                completion(nil)
+            }
         }.resume()
     }
     
@@ -117,7 +164,9 @@ class NetworkService: ObservableObject {
         URLSession.shared.dataTask(with: request) { _, response, _ in
             if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
                 completion(true)
-            } else { completion(false) }
+            } else {
+                completion(false)
+            }
         }.resume()
     }
 }
